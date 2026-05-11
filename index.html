@@ -673,99 +673,9 @@ nav {
 <div class="toast" id="toast"></div>
 
 <script>
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyO-JU6sjSR3tT6ivdlSOZO7B24RWd-59wlEQGydkE2IDfM7g5Ip-z9PpsVVAiITYic/exec';
-const DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbwNNGEXCnz03AfuxHbhEhH3DJierUa6pq7h2T1saDhQtHUOc49ey_ytghfDuwWt4jwZ9w/exec';
+// CUKUP PAKAI 1 URL SAJA (Masukkan URL Web App dari Script Pertama yang baru di-deploy)
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyO-JU6sjSR3tT6ivdlSOZO7B24RWd-59wlEQGydkE2IDfM7g5Ip-z9PpsVVAiITYic/exec'; 
 const WA_NUMBER = '6282334132737';
-
-let qty = 1;
-let orderData = {};
-let uploadedFile = null;
-
-function toggleVla(cb, optId, chkId) {
-  const opt = document.getElementById(optId);
-  const chk = document.getElementById(chkId);
-  if (cb.checked) { opt.classList.add('checked'); chk.textContent = '✓'; }
-  else { opt.classList.remove('checked'); chk.textContent = ''; }
-}
-
-function changeQty(d) {
-  qty = Math.max(1, Math.min(99, qty + d));
-  document.getElementById('qty-display').textContent = qty;
-  updateTotal();
-}
-
-function getBasePrice() {
-  const t = document.getElementById('topping').value;
-  return (t === 'Oreo' || t === 'Marie Regal') ? 12000 : 10000;
-}
-
-function updateTotal() {
-  document.getElementById('total-harga').textContent =
-    'Rp ' + (getBasePrice() * qty).toLocaleString('id-ID');
-}
-
-document.getElementById('topping').addEventListener('change', updateTotal);
-document.getElementById('rasa').addEventListener('change', updateTotal);
-
-function goToPayment() {
-  const nama = document.getElementById('nama').value.trim();
-  const wa = document.getElementById('wa').value.trim();
-  const rasa = document.getElementById('rasa').value;
-  const topping = document.getElementById('topping').value;
-  const vlaAsin = document.getElementById('vla-asin').checked;
-  const vlaManis = document.getElementById('vla-manis').checked;
-
-  if (!nama || !wa || !rasa || !topping) { showToast('⚠️ Isi semua field dulu ya!'); return; }
-  if (!vlaAsin && !vlaManis) { showToast('⚠️ Pilih minimal 1 jenis vla!'); return; }
-
-  const vla = [vlaAsin ? 'Vla Asin' : '', vlaManis ? 'Vla Manis' : ''].filter(Boolean).join(' + ');
-  const total = getBasePrice() * qty;
-
-  orderData = {
-    timestamp: new Date().toLocaleString('id-ID'),
-    nama, wa, rasa: rasa.replace(/^[^\s]+ /,''), topping, vla,
-    jumlah: qty, total: 'Rp ' + total.toLocaleString('id-ID'), totalNum: total
-  };
-
-  document.getElementById('order-summary').innerHTML = `
-    <div class="os-row"><span>Nama</span><span>${nama}</span></div>
-    <div class="os-row"><span>WhatsApp</span><span>${wa}</span></div>
-    <div class="os-row"><span>Rasa</span><span>${orderData.rasa}</span></div>
-    <div class="os-row"><span>Topping</span><span>${topping}</span></div>
-    <div class="os-row"><span>Vla</span><span>${vla}</span></div>
-    <div class="os-row"><span>Jumlah</span><span>${qty} cup</span></div>
-    <div class="os-row total"><span>Total</span><span>${orderData.total}</span></div>
-  `;
-
-  document.getElementById('form-wrapper').style.display = 'none';
-  document.getElementById('payment-page').style.display = 'block';
-  document.getElementById('payment-page').scrollIntoView({ behavior: 'smooth' });
-}
-
-function handleFile(file) {
-  if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ File terlalu besar! Maks 5MB.'); return; }
-  uploadedFile = file;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById('preview-img').src = e.target.result;
-    document.getElementById('preview-name').textContent = file.name;
-    document.getElementById('upload-preview').style.display = 'block';
-    document.getElementById('pay-submit-btn').disabled = false;
-    document.getElementById('upload-status').textContent = '✅ Foto siap dikirim!';
-    document.getElementById('upload-status').style.color = '#2e7d32';
-  };
-  reader.readAsDataURL(file);
-}
-
-function onDragOver(e) { e.preventDefault(); document.getElementById('upload-area').classList.add('dragover'); }
-function onDragLeave() { document.getElementById('upload-area').classList.remove('dragover'); }
-function onDrop(e) {
-  e.preventDefault();
-  document.getElementById('upload-area').classList.remove('dragover');
-  const f = e.dataTransfer.files[0];
-  if (f) handleFile(f);
-}
 
 async function submitWithProof() {
   if (!uploadedFile) { showToast('⚠️ Upload bukti pembayaran dulu!'); return; }
@@ -774,63 +684,76 @@ async function submitWithProof() {
   const statusEl = document.getElementById('upload-status');
   btn.disabled = true;
   btn.textContent = '⏳ Memproses...';
-  statusEl.textContent = '⏳ Mengupload bukti ke Drive...';
+  statusEl.textContent = '⏳ Mengirim pesanan & bukti transfer...';
   statusEl.style.color = 'var(--text-mid)';
 
   const base64 = await new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+    reader.onload = (e) => resolve(e.target.result.split(','));
     reader.readAsDataURL(uploadedFile);
   });
 
   const fileName = `bukti_${orderData.nama.replace(/\s+/g,'_')}_${Date.now()}.jpg`;
 
-  try {
-    await fetch(DRIVE_UPLOAD_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bukti_base64: base64, bukti_nama: fileName })
-    });
-  } catch (e) {}
-
-  statusEl.textContent = '⏳ Menyimpan order ke Sheets...';
+  // Gabungkan semua data order dan foto
+  const payload = { 
+    ...orderData, 
+    bukti_base64: base64, 
+    bukti_nama: fileName 
+  };
 
   try {
-    await fetch(APPS_SCRIPT_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...orderData, bukti_base64: base64, bukti_nama: fileName })
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      // PENTING: Gunakan text/plain untuk menghindari error CORS di Google Apps Script
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
     });
-  } catch (e) {}
 
-  const msg = encodeURIComponent(
-    `🍮 *PRE-ORDER PU'TOL*\n\n` +
-    `📋 *Detail Order:*\n` +
-    `• Nama: ${orderData.nama}\n` +
-    `• Rasa: ${orderData.rasa}\n` +
-    `• Topping: ${orderData.topping}\n` +
-    `• Vla: ${orderData.vla}\n` +
-    `• Jumlah: ${orderData.jumlah} cup\n` +
-    `• Total: ${orderData.total}\n\n` +
-    `📎 *Bukti pembayaran terlampir di bawah pesan ini.*\n\n` +
-    `Terima kasih! 🙏`
-  );
+    const result = await response.json();
 
-  statusEl.textContent = '✅ Tersimpan! Membuka WhatsApp...';
-  statusEl.style.color = '#2e7d32';
+    if (result.status === 'error') {
+      showToast('⚠️ Gagal menyimpan data. Coba lagi.');
+      console.error(result.msg);
+      btn.disabled = false;
+      btn.textContent = '💬 Konfirmasi via WhatsApp';
+      statusEl.textContent = '❌ Gagal mengirim, silakan coba lagi.';
+      statusEl.style.color = '#d32f2f';
+      return;
+    }
 
-  setTimeout(() => {
-    window.open(`https://wa.me/${WA_NUMBER}?text=${msg}`, '_blank');
-    document.getElementById('payment-page').style.display = 'none';
-    document.getElementById('done-page').style.display = 'block';
-    document.getElementById('done-page').scrollIntoView({ behavior: 'smooth' });
-  }, 900);
-}
+    // Jika sukses menyimpan ke Sheets & Drive, langsung buka WA
+    const msg = encodeURIComponent(
+      `🍮 *PRE-ORDER PU'TOL*\n\n` +
+      `📋 *Detail Order:*\n` +
+      `• Nama: ${orderData.nama}\n` +
+      `• Rasa: ${orderData.rasa}\n` +
+      `• Topping: ${orderData.topping}\n` +
+      `• Vla: ${orderData.vla}\n` +
+      `• Jumlah: ${orderData.jumlah} cup\n` +
+      `• Total: ${orderData.total}\n\n` +
+      `📎 *Bukti pembayaran terlampir di bawah pesan ini.*\n\n` +
+      `Terima kasih! 🙏`
+    );
 
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+    statusEl.textContent = '✅ Tersimpan! Membuka WhatsApp...';
+    statusEl.style.color = '#2e7d32';
+
+    setTimeout(() => {
+      window.open(`https://wa.me/${WA_NUMBER}?text=${msg}`, '_blank');
+      document.getElementById('payment-page').style.display = 'none';
+      document.getElementById('done-page').style.display = 'block';
+      document.getElementById('done-page').scrollIntoView({ behavior: 'smooth' });
+    }, 900);
+
+  } catch (e) {
+    showToast('⚠️ Terjadi masalah koneksi.');
+    console.error(e);
+    btn.disabled = false;
+    btn.textContent = '💬 Konfirmasi via WhatsApp';
+    statusEl.textContent = '❌ Terjadi kesalahan jaringan.';
+    statusEl.style.color = '#d32f2f';
+  }
 }
 </script>
 </body>
